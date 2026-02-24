@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { CopilotClient } from '@github/copilot-sdk';
+import { CopilotClient, approveAll } from '@github/copilot-sdk';
 import { getVendorKeys } from '@/lib/config';
 import fs from 'fs';
 import path from 'path';
@@ -23,9 +23,11 @@ export async function POST(req: Request) {
             fs.mkdirSync(workspaceDir, { recursive: true });
         }
 
-        // Initialize Copilot Client
+        // Initialize Copilot Client with the session workspace as its CWD
+        // so the CLI sandbox root matches the working directory.
         const clientOptions: any = {
-            logLevel: 'debug'
+            logLevel: 'debug',
+            cwd: workspaceDir,
         };
         if (vendor === 'github' && vendorKeys['github']) {
             clientOptions.githubToken = vendorKeys['github'];
@@ -45,6 +47,9 @@ export async function POST(req: Request) {
                         model: model || 'gpt-4o',
                         streaming: true,
                         workingDirectory: workspaceDir,
+                        // Auto-approve all write/shell/edit permission requests
+                        // so the agent can create and edit files in the workspace.
+                        onPermissionRequest: approveAll,
                     };
 
                     // If it is BYOK (like OpenAI or Google), use the provider object
