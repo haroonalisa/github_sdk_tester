@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Send, Settings, ArrowRightLeft } from 'lucide-react';
 import { ChatPanel } from '@/components/ChatPanel';
+import { FileTree } from '@/components/FileTree';
 
 interface Model {
   id: string;
@@ -15,12 +16,14 @@ export default function Home() {
   const [selectedModel, setSelectedModel] = useState<Model | null>(null);
 
   const [input, setInput] = useState('');
+  const [sessionId] = useState(() => crypto.randomUUID());
 
   // Independent chat states
   const [copilotMessages, setCopilotMessages] = useState<{ role: 'user' | 'assistant', content: string }[]>([]);
   const [rawMessages, setRawMessages] = useState<{ role: 'user' | 'assistant', content: string }[]>([]);
 
   const [isCopilotLoading, setIsCopilotLoading] = useState(false);
+  const [copilotActiveTask, setCopilotActiveTask] = useState<string | undefined>(undefined);
   const [isRawLoading, setIsRawLoading] = useState(false);
 
   useEffect(() => {
@@ -54,7 +57,8 @@ export default function Home() {
     const payload = {
       messages: [...copilotMessages, userMessage],
       model: selectedModel.id,
-      vendor: selectedModel.vendor
+      vendor: selectedModel.vendor,
+      sessionId
     };
 
     const fetchCopilot = async () => {
@@ -70,23 +74,51 @@ export default function Home() {
         const decoder = new TextDecoder();
 
         setCopilotMessages(prev => [...prev, { role: 'assistant', content: '' }]);
+        setCopilotActiveTask("Starting agent...");
 
         if (reader) {
           try {
+            let buffer = '';
             while (true) {
               const { done, value } = await reader.read();
               if (done) break;
-              const text = decoder.decode(value, { stream: true });
+              buffer += decoder.decode(value, { stream: true });
 
-              setCopilotMessages(prev => {
-                const newMsgs = [...prev];
-                const lastIdx = newMsgs.length - 1;
-                newMsgs[lastIdx] = {
-                  ...newMsgs[lastIdx],
-                  content: newMsgs[lastIdx].content + text
-                };
-                return newMsgs;
-              });
+              const lines = buffer.split('\n');
+              buffer = lines.pop() || ''; // keep the last incomplete line
+
+              for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                  try {
+                    const data = JSON.parse(line.substring(6));
+                    if (data.type === 'content') {
+                      setCopilotMessages(prev => {
+                        const newMsgs = [...prev];
+                        const lastIdx = newMsgs.length - 1;
+                        newMsgs[lastIdx] = {
+                          ...newMsgs[lastIdx],
+                          content: newMsgs[lastIdx].content + data.content
+                        };
+                        return newMsgs;
+                      });
+                    } else if (data.type === 'status') {
+                      setCopilotActiveTask(data.content ? data.content : undefined);
+                    } else if (data.type === 'error') {
+                      setCopilotMessages(prev => {
+                        const newMsgs = [...prev];
+                        const lastIdx = newMsgs.length - 1;
+                        newMsgs[lastIdx] = {
+                          ...newMsgs[lastIdx],
+                          content: newMsgs[lastIdx].content + `\n\n**Error:** ${data.content}`
+                        };
+                        return newMsgs;
+                      });
+                    }
+                  } catch (e) {
+                    console.warn('Failed to parse SSE line', line);
+                  }
+                }
+              }
             }
           } catch (e: any) {
             console.warn("Copilot reader interrupted:", e);
@@ -113,6 +145,7 @@ export default function Home() {
           return [...newMsgs, { role: 'assistant', content: `**Error:** ${err.message}` }];
         });
       } finally {
+        setCopilotActiveTask(undefined);
         setIsCopilotLoading(false);
       }
     };
@@ -229,12 +262,14 @@ export default function Home() {
 
       {/* Main Panels */}
       <main className="flex-1 flex flex-col md:flex-row gap-4 p-4 lg:p-6 overflow-hidden min-h-0">
-        <div className="flex-1 flex min-w-0">
+        <div className="flex-1 flex flex-col min-w-0">
           <ChatPanel
             title="GitHub Copilot Agentic SDK"
             messages={copilotMessages}
             isLoading={isCopilotLoading}
+            loadingText={copilotActiveTask}
           />
+          <FileTree sessionId={sessionId} isPolling={isCopilotLoading} />
         </div>
         <div className="flex-1 flex min-w-0">
           <ChatPanel

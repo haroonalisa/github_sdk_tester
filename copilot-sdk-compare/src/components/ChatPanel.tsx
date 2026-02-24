@@ -12,9 +12,10 @@ interface ChatPanelProps {
     title: string;
     messages: Message[];
     isLoading: boolean;
+    loadingText?: string;
 }
 
-export function ChatPanel({ title, messages, isLoading }: ChatPanelProps) {
+export function ChatPanel({ title, messages, isLoading, loadingText }: ChatPanelProps) {
     return (
         <div className="flex flex-col w-full h-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden shadow-sm">
             <div className="bg-gray-50 dark:bg-gray-800/50 p-4 border-b border-gray-200 dark:border-gray-800">
@@ -91,7 +92,7 @@ export function ChatPanel({ title, messages, isLoading }: ChatPanelProps) {
                 {isLoading && (
                     <div className="flex justify-start">
                         <div className="bg-white dark:bg-gray-800 text-gray-500 border border-gray-100 dark:border-gray-700 rounded-2xl rounded-bl-none p-4 shadow-sm animate-pulse">
-                            Thinking...
+                            {loadingText || "Thinking..."}
                         </div>
                     </div>
                 )}
