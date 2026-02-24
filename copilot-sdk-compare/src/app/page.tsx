@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Send, Settings, ArrowRightLeft } from 'lucide-react';
+import { Send, Settings, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { ChatPanel } from '@/components/ChatPanel';
 import { FileTree } from '@/components/FileTree';
 
@@ -22,6 +22,7 @@ export default function Home() {
   const [copilotMessages, setCopilotMessages] = useState<{ role: 'user' | 'assistant', content: string }[]>([]);
   const [rawMessages, setRawMessages] = useState<{ role: 'user' | 'assistant', content: string }[]>([]);
 
+  const [fileTreeOpen, setFileTreeOpen] = useState(true);
   const [isCopilotLoading, setIsCopilotLoading] = useState(false);
   const [copilotActiveTask, setCopilotActiveTask] = useState<string | undefined>(undefined);
   const [isRawLoading, setIsRawLoading] = useState(false);
@@ -230,7 +231,7 @@ export default function Home() {
       <header className="flex items-center justify-between px-6 py-4 bg-white dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800 shadow-sm z-10">
         <div className="flex items-center gap-3">
           <div className="bg-blue-600 p-2 rounded-lg">
-            <ArrowRightLeft className="w-5 h-5 text-white" />
+            <PanelLeftClose className="w-5 h-5 text-white" />
           </div>
           <div>
             <h1 className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-400 bg-clip-text text-transparent">
@@ -269,6 +270,40 @@ export default function Home() {
 
       {/* Main Panels */}
       <main className="flex-1 flex flex-col md:flex-row gap-4 p-4 lg:p-6 overflow-hidden min-h-0">
+
+        {/* ── File Tree column (collapsible) ── */}
+        {fileTreeOpen ? (
+          <div className="flex-1 flex flex-col min-w-0 transition-all duration-200">
+            <div className="flex-1 flex flex-col overflow-hidden">
+              {/* Header with collapse button */}
+              <div className="flex items-center justify-between bg-gray-50 dark:bg-[#252526] px-4 py-2.5 border border-gray-200 dark:border-gray-800 rounded-t-xl text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                <span>Agent Workspace</span>
+                <button
+                  onClick={() => setFileTreeOpen(false)}
+                  title="Collapse file tree"
+                  className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+                >
+                  <PanelLeftClose className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="flex-1 bg-white dark:bg-[#1e1e1e] border border-t-0 border-gray-200 dark:border-gray-800 rounded-b-xl overflow-y-auto">
+                <FileTree sessionId={sessionId} isPolling={isCopilotLoading} />
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* Collapsed tab */
+          <button
+            onClick={() => setFileTreeOpen(true)}
+            title="Expand file tree"
+            className="flex flex-col items-center justify-center w-8 flex-shrink-0 bg-gray-50 dark:bg-[#252526] border border-gray-200 dark:border-gray-800 rounded-xl text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors gap-2"
+          >
+            <PanelLeftOpen className="w-4 h-4" />
+            <span className="text-[10px] font-semibold uppercase tracking-widest rotate-90 whitespace-nowrap">Files</span>
+          </button>
+        )}
+
+        {/* ── Copilot panel ── */}
         <div className="flex-1 flex flex-col min-w-0">
           <ChatPanel
             title="GitHub Copilot Agentic SDK"
@@ -276,8 +311,9 @@ export default function Home() {
             isLoading={isCopilotLoading}
             loadingText={copilotActiveTask}
           />
-          <FileTree sessionId={sessionId} isPolling={isCopilotLoading} />
         </div>
+
+        {/* ── Raw SDK panel ── */}
         <div className="flex-1 flex min-w-0">
           <ChatPanel
             title="Raw AI Model (Direct SDK)"
@@ -285,6 +321,7 @@ export default function Home() {
             isLoading={isRawLoading}
           />
         </div>
+
       </main>
 
       {/* Input Area */}
