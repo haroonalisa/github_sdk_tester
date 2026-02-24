@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { CopilotClient, approveAll } from '@github/copilot-sdk';
 import { getVendorKeys } from '@/lib/config';
 import fs from 'fs';
-import path from 'path';
+import nodePath from 'path';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120; // 2 minutes to allow big agentic changes
@@ -18,7 +18,7 @@ export async function POST(req: Request) {
         }
 
         const effectiveSessionId = sessionId || 'default';
-        const workspaceDir = path.join(process.cwd(), 'tmp', effectiveSessionId);
+        const workspaceDir = nodePath.join(process.cwd(), 'tmp', effectiveSessionId);
         if (!fs.existsSync(workspaceDir)) {
             fs.mkdirSync(workspaceDir, { recursive: true });
         }
@@ -43,6 +43,33 @@ export async function POST(req: Request) {
                     controller.enqueue(encoder.encode(chunk));
                 };
                 try {
+                    // Custom tool: create directories (the built-in `create` tool
+                    // requires parent dirs to exist but has no built-in mkdir).
+                    const mkdirTool = {
+                        name: 'mkdir',
+                        description: 'Create a directory (and any necessary parent directories) at the given absolute path.',
+                        parameters: {
+                            type: 'object',
+                            properties: {
+                                path: { type: 'string', description: 'Absolute path of the directory to create.' }
+                            },
+                            required: ['path'],
+                        },
+                        handler: async (args: { path: string }) => {
+                            try {
+                                const dirPath = args.path;
+                                // Resolve relative paths against the workspace dir for safety
+                                const resolved = nodePath.isAbsolute(dirPath)
+                                    ? dirPath
+                                    : nodePath.join(workspaceDir, dirPath);
+                                fs.mkdirSync(resolved, { recursive: true });
+                                return `Directory created: ${resolved}`;
+                            } catch (err: any) {
+                                return `Error creating directory: ${err.message}`;
+                            }
+                        },
+                    };
+
                     const sessionOptions: any = {
                         model: model || 'gpt-4o',
                         streaming: true,
@@ -50,6 +77,8 @@ export async function POST(req: Request) {
                         // Auto-approve all write/shell/edit permission requests
                         // so the agent can create and edit files in the workspace.
                         onPermissionRequest: approveAll,
+                        // Expose mkdir as a custom tool so the agent can create folders.
+                        tools: [mkdirTool],
                     };
 
                     // If it is BYOK (like OpenAI or Google), use the provider object

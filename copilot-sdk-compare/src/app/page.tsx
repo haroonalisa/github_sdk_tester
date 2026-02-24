@@ -79,6 +79,7 @@ export default function Home() {
         if (reader) {
           try {
             let buffer = '';
+            let pendingNewParagraph = false; // insert \n\n after each tool completion
             while (true) {
               const { done, value } = await reader.read();
               if (done) break;
@@ -95,14 +96,20 @@ export default function Home() {
                       setCopilotMessages(prev => {
                         const newMsgs = [...prev];
                         const lastIdx = newMsgs.length - 1;
+                        const prefix = pendingNewParagraph && newMsgs[lastIdx].content ? '\n\n' : '';
+                        pendingNewParagraph = false;
                         newMsgs[lastIdx] = {
                           ...newMsgs[lastIdx],
-                          content: newMsgs[lastIdx].content + data.content
+                          content: newMsgs[lastIdx].content + prefix + data.content
                         };
                         return newMsgs;
                       });
                     } else if (data.type === 'status') {
-                      setCopilotActiveTask(data.content ? data.content : undefined);
+                      const hasContent = !!data.content;
+                      setCopilotActiveTask(hasContent ? data.content : undefined);
+                      // When a tool finishes (status cleared), flag the next content chunk
+                      // to start a new paragraph so messages don't run together.
+                      if (!hasContent) pendingNewParagraph = true;
                     } else if (data.type === 'error') {
                       setCopilotMessages(prev => {
                         const newMsgs = [...prev];
